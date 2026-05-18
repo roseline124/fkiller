@@ -1,0 +1,132 @@
+name: Slack bug auto-fix (AI PR)
+
+permissions:
+  contents: write
+  pull-requests: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Supabase fix_requests.id
+        required: false
+      repo:
+        description: 레포 이름 / 식별자 (메타)
+        required: false
+      slack_channel_id:
+        description: Slack channel ID
+        required: false
+      slack_thread_ts:
+        description: Slack thread ts
+        required: false
+      title:
+        description: 버그 제목
+        required: true
+      error_summary:
+        description: 에러 요약 또는 스택
+        required: true
+      reproduction_steps:
+        description: 재현 단계
+        required: false
+      expected_behavior:
+        description: 기대 동작
+        required: false
+      allowed_file_patterns:
+        description: 수정 허용 glob JSON 배열 (선택)
+        required: false
+      blocked_file_patterns:
+        description: 추가 차단 glob JSON 배열 (선택)
+        required: false
+      environment_url:
+        description: Context Routing — 배포 URL
+        required: false
+      environment_name:
+        description: Context Routing — 배포 이름
+        required: false
+      context_dictionary:
+        description: Routing JSON 문자열 (선택 시 파일보다 우선)
+        required: false
+      max_context_files:
+        description: AI에 전달할 후보 파일 수 (5–20)
+        required: false
+      max_patch_files:
+        description: 패치 허용 최대 수정 파일 수 (1–20)
+        required: false
+
+jobs:
+  auto_fix:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: slack-auto-fix-${{ github.run_id }}
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies via detected manager
+        run: |
+          set -euo pipefail
+          if [[ -f pnpm-lock.yaml ]]; then
+            corepack enable
+            if [[ ! -d node_modules ]]; then pnpm install --frozen-lockfile; fi
+          elif [[ -f yarn.lock ]]; then
+            if [[ ! -d node_modules ]]; then yarn install --frozen-lockfile; fi
+          elif [[ -f package-lock.json ]]; then
+            if [[ ! -d node_modules ]]; then npm ci; fi
+          else
+            corepack enable
+            if [[ ! -d node_modules ]]; then pnpm install; fi
+          fi
+
+      - name: Run slack-auto-fix
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          INPUT_REQUEST_ID: ${{ github.event.inputs.request_id }}
+          INPUT_REPO: ${{ github.event.inputs.repo }}
+          INPUT_SLACK_CHANNEL_ID: ${{ github.event.inputs.slack_channel_id }}
+          INPUT_SLACK_THREAD_TS: ${{ github.event.inputs.slack_thread_ts }}
+          INPUT_TITLE: ${{ github.event.inputs.title }}
+          INPUT_ERROR_SUMMARY: ${{ github.event.inputs.error_summary }}
+          INPUT_REPRODUCTION_STEPS: ${{ github.event.inputs.reproduction_steps }}
+          INPUT_EXPECTED_BEHAVIOR: ${{ github.event.inputs.expected_behavior }}
+          INPUT_ALLOWED_FILE_PATTERNS: ${{ github.event.inputs.allowed_file_patterns }}
+          INPUT_BLOCKED_FILE_PATTERNS: ${{ github.event.inputs.blocked_file_patterns }}
+          INPUT_ENVIRONMENT_URL: ${{ github.event.inputs.environment_url }}
+          INPUT_ENVIRONMENT_NAME: ${{ github.event.inputs.environment_name }}
+          INPUT_CONTEXT_DICTIONARY: ${{ github.event.inputs.context_dictionary }}
+          INPUT_MAX_CONTEXT_FILES: ${{ github.event.inputs.max_context_files }}
+          INPUT_MAX_PATCH_FILES: ${{ github.event.inputs.max_patch_files }}
+        run: |
+          set -euo pipefail
+          if [[ -f pnpm-lock.yaml ]]; then
+            corepack enable || true
+            pnpm exec tsx scripts/slack-auto-fix/index.ts
+          elif [[ -f yarn.lock ]]; then
+            if command -v corepack >/dev/null 2>&1; then corepack enable || true; fi
+            NODE_OPTIONS="" npx --yes tsx scripts/slack-auto-fix/index.ts
+          elif [[ -f package-lock.json ]]; then
+            npx --yes tsx scripts/slack-auto-fix/index.ts
+          else
+            corepack enable || true
+            pnpm exec tsx scripts/slack-auto-fix/index.ts
+          fi
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slack-auto-fix-report-${{ github.run_id }}
+          path: slack-auto-fix-report.json

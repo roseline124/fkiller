@@ -1,0 +1,27 @@
+{
+  "branchRoutes": [
+    {
+      "match": {
+        "environmentUrl": "https://agent.koreadeep.com"
+      },
+      "baseBranch": "main"
+    },
+    {
+      "match": {
+        "environmentName": "staging"
+      },
+      "baseBranch": "stage"
+    }
+  ],
+  "keywordRoutes": [
+    {
+      "keywords": ["main page", "template detail", "keyvalue", "key-value"],
+      "symbols": ["MainPage", "useExtractKeyvalueStream"],
+      "paths": [
+        "apps/**/src/**/MainPage*",
+        "apps/**/src/**/*extract*keyvalue*",
+        "packages/**/src/**/*extract*keyvalue*"
+      ]
+    }
+  ]
+}

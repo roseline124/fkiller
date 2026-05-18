@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+*.log
+.slack-auto-fix-report.json.local
+slack-auto-fix-report.json
+.env
+.env.*
