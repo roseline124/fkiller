@@ -14,6 +14,12 @@ function sanitizeInt(raw: string, fallback: number, min: number, max: number, la
   return n;
 }
 
+function sanitizeLanguage(raw: string): string {
+  const s = raw.trim().replace(/[^\w.-]/g, "");
+  const t = s.slice(0, 40);
+  return t.length > 0 ? t : "ko";
+}
+
 /** Reads INPUT_* forwarded from GitHub Actions (non-secret fields only). */
 export function readWorkflowInputsFromEnv(environ = process.env): WorkflowInputs {
   const raw = (k: string): string => {
@@ -33,6 +39,7 @@ export function readWorkflowInputsFromEnv(environ = process.env): WorkflowInputs
     error_summary: raw("ERROR_SUMMARY"),
     reproduction_steps: raw("REPRODUCTION_STEPS"),
     expected_behavior: raw("EXPECTED_BEHAVIOR"),
+    language: sanitizeLanguage(raw("LANGUAGE")),
     allowed_file_patterns: parseGlobPatternsJson(allowed_patterns, "allowed_file_patterns"),
     blocked_file_patterns: parseGlobPatternsJson(blocked_patterns, "blocked_file_patterns"),
     environment_url: raw("ENVIRONMENT_URL"),

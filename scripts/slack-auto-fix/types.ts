@@ -7,6 +7,8 @@ export type WorkflowInputs = {
   error_summary: string;
   reproduction_steps: string;
   expected_behavior: string;
+  /** BCP47-style tag (예: ko, en, ja). 빈 입력 시 스크립트 기본값 `ko`. */
+  language: string;
   allowed_file_patterns: string[];
   blocked_file_patterns: string[];
   environment_url: string;

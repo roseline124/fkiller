@@ -14,7 +14,7 @@ export type SlackAutoFixReport = {
   schema_version: 1;
   status: "success" | "partial" | "failed" | "noop";
   request_id: string;
-  slack: Pick<WorkflowInputs, "slack_channel_id" | "slack_thread_ts" | "repo"> & {
+  slack: Pick<WorkflowInputs, "slack_channel_id" | "slack_thread_ts" | "repo" | "language"> & {
     environment_url: string;
     environment_name: string;
   };
@@ -51,6 +51,7 @@ export function composePrBody(report: SlackAutoFixReport, bug: BugReportNormaliz
 }): string {
   const lines = [
     "## Slack 요약",
+    `- Language (워크플로 입력 / AI 코드 주석 locale): \`${report.slack.language || "ko"}\``,
     `- 요청 제목: ${bug.inputs.title || "(미입력)"}`,
     `- 에러 요약: ${bug.inputs.error_summary || "(미입력)"}`,
     `- request_id (\`Supabase.fix_requests.id\`): \`${report.request_id || "unknown"}\``,

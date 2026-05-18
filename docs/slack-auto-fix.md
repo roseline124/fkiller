@@ -14,7 +14,7 @@ GitHub Actions (ubuntu, checkout fetch-depth 0)
         │  루트 패키지 매니저(lockfile) 기준 의존성 설치 후
         ▼
 scripts/slack-auto-fix/index.ts
-  1) INPUT_* 환경변수 로드 (workflow 입력)
+  1) INPUT_* 환경변수 로드 (workflow 입력, `LANGUAGE` 포함)
   2) context-dictionary 로드 (입력 JSON > 파일 > 예제 > 빈 객체)
   3) 정규화 + 차단 glob 병합
   4) resolve-base-branch.ts → PR base 브랜치
@@ -68,6 +68,15 @@ scripts/slack-auto-fix/index.ts
 
 ---
 
+## `language` 입력
+
+워크플로 `language`(선택)는 **BCP47 스타일** 태그입니다(예: `ko`, `en`, `ja-JP`). 비어 두면 스크립트 기본값 **`ko`** 입니다.
+
+- **AI 패치**: diff 에 **새로 추가하는 인라인 주석**만 이 locale 에 맞추도록 시스템 프롬프트에 포함합니다(PR 본문 구조 문구는 기본 한국어 섹션을 유지합니다).
+- **메타데이터**: `slack-auto-fix-report.json` 의 `slack.language` 및 PR 본문 «Slack 요약» 에 표시됩니다.
+
+---
+
 ## workflow_dispatch 호출 예시
 
 `ref` 는 **워크플로 파일을 읽어올 기본 ref**입니다. 실제 수정·PR 베이스는 Context Routing 결과(`selected_base_branch`)를 따릅니다.
@@ -80,6 +89,7 @@ scripts/slack-auto-fix/index.ts
   "inputs": {
     "request_id": "req_123",
     "environment_url": "https://agent.koreadeep.com",
+    "language": "ko",
     "title": "템플릿 상세페이지 keyvalue 추출 실패",
     "error_summary": "템플릿 상세페이지에서 keyvalue 추출이 안돼요",
     "reproduction_steps": "템플릿 상세페이지 접속 후 keyvalue 추출 실행",
@@ -161,9 +171,31 @@ REST API는 [`Create a workflow dispatch event`](https://docs.github.com/en/rest
 
 ## 로컬 실행 (디버깅)
 
+### 단위 테스트
+
+```bash
+pnpm test
+```
+
+통과하면 Vitest 가 파일별 결과를 터미널에 출력합니다. 수정 중 검증에는 `pnpm test:watch`.
+
+### E2E (서브프로세스)
+
+로컬에 **pnpm**, **git**, **`rg`(ripgrep)** 필요. 미설치 시 해당 스위트는 `describe.skipIf` 로 스킵됩니다.
+
+```bash
+pnpm test:e2e
+```
+
+[`tests/e2e/slack-auto-fix.orchestrator.e2e.test.ts`](../tests/e2e/slack-auto-fix.orchestrator.e2e.test.ts): bare 원격 + 워킹 트리를 만들고 `GITHUB_WORKSPACE` 를 그 클론으로 둔 뒤 **`pnpm exec tsx scripts/slack-auto-fix/index.ts`** 를 실행합니다.
+서브프로세스에서는 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` 를 비워 **패치 미적용 noop** 과 `slack-auto-fix-report.json`·후보 경로 검증까지 확인합니다.
+
+### Slack 자동 수정 스크립트
+
 ```bash
 export INPUT_TITLE='예시'
 export INPUT_ERROR_SUMMARY='예시 버그'
+export INPUT_LANGUAGE='ko'
 # … 필요 시 INPUT_* 전부 설정
 pnpm exec tsx scripts/slack-auto-fix/index.ts
 ```

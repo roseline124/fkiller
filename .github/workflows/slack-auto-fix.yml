@@ -52,6 +52,9 @@ on:
       max_patch_files:
         description: 패치 허용 최대 수정 파일 수 (1–20)
         required: false
+      language:
+        description: AI 신규 인라인 주석용 locale(BCP47, 예 ko/en/ja-JP). 비워두면 스크립트 기본 ko
+        required: false
 
 jobs:
   auto_fix:
@@ -109,6 +112,7 @@ jobs:
           INPUT_CONTEXT_DICTIONARY: ${{ github.event.inputs.context_dictionary }}
           INPUT_MAX_CONTEXT_FILES: ${{ github.event.inputs.max_context_files }}
           INPUT_MAX_PATCH_FILES: ${{ github.event.inputs.max_patch_files }}
+          INPUT_LANGUAGE: ${{ github.event.inputs.language }}
         run: |
           set -euo pipefail
           if [[ -f pnpm-lock.yaml ]]; then

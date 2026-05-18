@@ -20,6 +20,8 @@ export async function generateUnifiedDiffViaAi(opts: {
     throw new Error("Missing OPENAI_API_KEY or ANTHROPIC_API_KEY in environment.");
   }
 
+  const language = (opts.bug.inputs.language ?? "ko").trim() || "ko";
+
   const systemPrompt = [
     "You are an automated codebase repair assistant running in CI.",
     "Return ONLY valid unified diff text (git-compatible) that modifies existing tracked files.",
@@ -27,6 +29,7 @@ export async function generateUnifiedDiffViaAi(opts: {
     `Touch at most ${opts.bug.inputs.max_patch_files} files.`,
     "Do NOT create brand new paths (avoid `--- /dev/null`).",
     "Only change files permitted by blocked/allowed rules provided.",
+    `If you add any NEW inline comments inside the edited code, write them using language/locale tag "${language}". Do not translate existing comments unnecessarily.`,
   ].join(" ");
 
   const userText = stringifyPayload(buildEnvelope(opts));
@@ -55,6 +58,7 @@ function buildEnvelope(opts: {
       repo: opts.bug.inputs.repo,
       environment_url: opts.bug.inputs.environment_url,
       environment_name: opts.bug.inputs.environment_name,
+      language: opts.bug.inputs.language,
     },
     routing: {
       selectedBaseBranch: opts.base.selectedBaseBranch,
