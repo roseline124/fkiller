@@ -1,4 +1,4 @@
-import type { BugReportNormalized, ContextDictionary, WorkflowInputs } from "../../scripts/slack-auto-fix/types.ts";
+import type { BugReportNormalized, ContextDictionary, WorkflowInputs } from "../../src/types.ts";
 
 export function baseWorkflowInputs(overrides: Partial<WorkflowInputs> = {}): WorkflowInputs {
   return {
@@ -15,7 +15,6 @@ export function baseWorkflowInputs(overrides: Partial<WorkflowInputs> = {}): Wor
     blocked_file_patterns: [],
     environment_url: "",
     environment_name: "",
-    context_dictionary_raw: "",
     max_context_files: 12,
     max_patch_files: 5,
     ...overrides,

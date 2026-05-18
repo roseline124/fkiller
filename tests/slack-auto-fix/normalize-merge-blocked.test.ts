@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_BLOCKED_GLOBS, normalizeBugReport } from "../../scripts/slack-auto-fix/normalize.ts";
+import { DEFAULT_BLOCKED_GLOBS, normalizeBugReport } from "../../src/normalize.ts";
 import { baseWorkflowInputs, minimalDictionary } from "../fixtures/workflow-fixtures.ts";
 
 describe("normalizeBugReport", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchKeywordRoutesFromText } from "../../scripts/slack-auto-fix/retrieve-context.ts";
+import { matchKeywordRoutesFromText } from "../../src/retrieve-context.ts";
 import { minimalDictionary } from "../fixtures/workflow-fixtures.ts";
 
 describe("matchKeywordRoutesFromText", () => {

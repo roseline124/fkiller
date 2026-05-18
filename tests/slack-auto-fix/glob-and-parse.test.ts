@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { matchesAnyGlob } from "../../scripts/slack-auto-fix/glob-utils.ts";
-import { parseGlobPatternsJson } from "../../scripts/slack-auto-fix/parse-patterns-json.ts";
+import { matchesAnyGlob } from "../../src/glob-utils.ts";
+import { parseGlobPatternsJson } from "../../src/parse-patterns-json.ts";
 
 describe("glob-utils", () => {
   it("**/auth/** 는 auth 경로를 차단", () => {

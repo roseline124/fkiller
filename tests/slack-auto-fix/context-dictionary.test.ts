@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeDictionary } from "../../scripts/slack-auto-fix/context-dictionary.ts";
+import { normalizeDictionary } from "../../src/context-dictionary.ts";
 
 describe("normalizeDictionary", () => {
   it("유효한 branchRoutes/keywordRoutes 정규화", () => {

@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - run: corepack enable pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build bundle
+        run: pnpm run build
+
+      - name: Test
+        run: pnpm run test
+
+      - name: Verify committed dist matches source
+        run: git diff --exit-code dist/index.js dist/package.json

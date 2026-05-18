@@ -7,17 +7,21 @@
     "node": ">=20"
   },
   "scripts": {
-    "slack-auto-fix": "tsx scripts/slack-auto-fix/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.js --format=cjs --legal-comments=none",
+    "build:check": "pnpm run build && git diff --exit-code dist/index.js dist/package.json",
+    "slack-auto-fix": "tsx src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "vitest run tests/e2e"
   },
   "dependencies": {
+    "@actions/core": "^1.11.1",
     "picomatch": "^4.0.3"
   },
   "devDependencies": {
     "@types/node": "^22.13.13",
     "@types/picomatch": "^4.0.3",
+    "esbuild": "^0.27.0",
     "tsx": "^4.21.0",
     "typescript": "^5.8.3",
     "vitest": "^4.1.6"

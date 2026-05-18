@@ -1,11 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 import type { BranchRouteMatch, ContextDictionary } from "./types.ts";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const CONTEXT_JSON_PATH = resolve(__dirname, "context-dictionary.json");
-const CONTEXT_EXAMPLE_PATH = resolve(__dirname, "context-dictionary.example.json");
 
 export function normalizeDictionary(raw: unknown): ContextDictionary {
   if (!raw || typeof raw !== "object") {
@@ -61,31 +56,49 @@ export function normalizeDictionary(raw: unknown): ContextDictionary {
   };
 }
 
-function emptyDictionary(): ContextDictionary {
+export function emptyDictionary(): ContextDictionary {
   return { branchRoutes: [], keywordRoutes: [] };
 }
 
-export async function loadContextDictionary(workflowInlineJson?: string): Promise<ContextDictionary> {
-  const inline = (workflowInlineJson ?? "").trim();
+/**
+ * Priority: non-empty inline JSON → file at `fileRelativePath` under workspace → empty.
+ */
+export async function loadContextDictionary(
+  opts: { inlineJson: string; fileRelativePath: string },
+  workspaceRoot: string,
+  onWarn?: (message: string) => void,
+): Promise<ContextDictionary> {
+  const inline = (opts.inlineJson ?? "").trim();
   if (inline.length > 0) {
     try {
       return normalizeDictionary(JSON.parse(inline) as unknown);
     } catch (e) {
-      throw new Error(`context_dictionary input is invalid JSON: ${e instanceof Error ? e.message : String(e)}`);
+      throw new Error(
+        `context_dictionary_json is invalid JSON: ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
   }
 
+  const rel = (opts.fileRelativePath ?? "").trim() || ".github/slack-auto-fix/context-dictionary.json";
+  const abs = resolve(workspaceRoot, rel);
+
+  let text: string;
   try {
-    const json = JSON.parse(await readFile(CONTEXT_JSON_PATH, "utf8")) as unknown;
-    return normalizeDictionary(json);
-  } catch {
-    // fallback
+    text = await readFile(abs, "utf8");
+  } catch (e) {
+    const code = e && typeof e === "object" && "code" in e ? (e as NodeJS.ErrnoException).code : "";
+    if (code === "ENOENT") {
+      onWarn?.(`context dictionary not found at ${rel}; using empty routing.`);
+      return emptyDictionary();
+    }
+    throw e;
   }
 
   try {
-    const example = JSON.parse(await readFile(CONTEXT_EXAMPLE_PATH, "utf8")) as unknown;
-    return normalizeDictionary(example);
-  } catch {
-    return emptyDictionary();
+    return normalizeDictionary(JSON.parse(text) as unknown);
+  } catch (e) {
+    throw new Error(
+      `context dictionary file at ${rel} is invalid JSON: ${e instanceof Error ? e.message : String(e)}`,
+    );
   }
 }

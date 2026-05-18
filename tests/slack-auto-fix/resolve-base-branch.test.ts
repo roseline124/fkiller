@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveBaseBranch } from "../../scripts/slack-auto-fix/resolve-base-branch.ts";
+import { resolveBaseBranch } from "../../src/resolve-base-branch.ts";
 import { minimalDictionary } from "../fixtures/workflow-fixtures.ts";
 
 describe("resolveBaseBranch", () => {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { readWorkflowInputsFromEnv } from "../../scripts/slack-auto-fix/read-workflow-inputs.ts";
+import { readWorkflowInputsFromEnv } from "../../src/read-workflow-inputs.ts";
 
 describe("readWorkflowInputsFromEnv", () => {
   const OLD = process.env;

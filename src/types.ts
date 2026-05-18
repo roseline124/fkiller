@@ -13,7 +13,6 @@ export type WorkflowInputs = {
   blocked_file_patterns: string[];
   environment_url: string;
   environment_name: string;
-  context_dictionary_raw: string;
   max_context_files: number;
   max_patch_files: number;
 };

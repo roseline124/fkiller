@@ -4,7 +4,7 @@ import {
   extractPositivePaths,
   stripDiffFences,
   validatePatchAgainstPolicy,
-} from "../../scripts/slack-auto-fix/apply-patch.ts";
+} from "../../src/apply-patch.ts";
 import { minimalBug } from "../fixtures/workflow-fixtures.ts";
 
 const SAMPLE_DIFF = `diff --git a/src/foo.ts b/src/foo.ts

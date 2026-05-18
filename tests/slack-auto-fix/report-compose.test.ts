@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { composePrBody } from "../../scripts/slack-auto-fix/report.ts";
+import { composePrBody } from "../../src/report.ts";
 import { minimalBug } from "../fixtures/workflow-fixtures.ts";
-import type { SlackAutoFixReport } from "../../scripts/slack-auto-fix/report.ts";
+import type { SlackAutoFixReport } from "../../src/report.ts";
 
 function stubReport(overrides: Partial<SlackAutoFixReport> = {}): SlackAutoFixReport {
   return {

@@ -1,11 +1,13 @@
-import { appendFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+
+import * as core from "@actions/core";
 
 import type { SlackAutoFixReport, ValidationSlice } from "./report.ts";
 import { composePrBody, writeReport } from "./report.ts";
 import { loadContextDictionary } from "./context-dictionary.ts";
 import { normalizeBugReport } from "./normalize.ts";
-import { readWorkflowInputsFromEnv } from "./read-workflow-inputs.ts";
+import { readActionInputs } from "./read-workflow-inputs.ts";
 import { resolveBaseBranch } from "./resolve-base-branch.ts";
 import { retrieveContextCandidates, snippetForAi } from "./retrieve-context.ts";
 import { scoreCandidateFiles } from "./score-candidates.ts";
@@ -19,27 +21,58 @@ const SNIPPET_CHAR_BUDGET = 28_000;
 
 function diagnosticsPush(list: string[], msg: string) {
   list.push(msg);
-  console.warn(`slack-auto-fix: ${msg}`);
+  core.warning(`slack-auto-fix: ${msg}`);
 }
 
-function emitKv(key: string, value: string) {
-  const p = process.env.GITHUB_OUTPUT;
-  if (!p) return;
-  appendFileSync(p, `${key}=${escapeOutput(value)}\n`, { encoding: "utf8" });
+function applySecretsFromInputs(): void {
+  const gh = core.getInput("github_token", { required: true });
+  core.setSecret(gh);
+  process.env.GITHUB_TOKEN = gh;
+  process.env.GH_TOKEN = gh;
+
+  const oai = core.getInput("openai_api_key");
+  if (oai) {
+    core.setSecret(oai);
+    process.env.OPENAI_API_KEY = oai;
+  } else {
+    delete process.env.OPENAI_API_KEY;
+  }
+
+  const ant = core.getInput("anthropic_api_key");
+  if (ant) {
+    core.setSecret(ant);
+    process.env.ANTHROPIC_API_KEY = ant;
+  } else {
+    delete process.env.ANTHROPIC_API_KEY;
+  }
 }
 
-function escapeOutput(val: string): string {
-  return val.replace(/\r?\n/g, " ").slice(0, 8_000);
+async function writeFailureSummary(message: string, diagnostics: string[]): Promise<void> {
+  await core.summary
+    .addHeading("slack-auto-fix failed")
+    .addRaw(`${message}\n\n`)
+    .addHeading("Diagnostics", 3)
+    .addCodeBlock(diagnostics.join("\n") || "(none)", "text")
+    .write();
 }
 
 async function main(): Promise<void> {
+  applySecretsFromInputs();
+
   const diagnostics: string[] = [];
   const workspace = await workspaceRoot();
-  const inputs = readWorkflowInputsFromEnv();
-  if (!inputs.request_id.trim()) diagnosticsPush(diagnostics, "request_id was empty");
+  const bundle = readActionInputs(core);
+  const inputs = bundle.workflow;
 
   try {
-    const dictionary = await loadContextDictionary(inputs.context_dictionary_raw.trim());
+    const dictionary = await loadContextDictionary(
+      {
+        inlineJson: bundle.contextDictionaryJson,
+        fileRelativePath: bundle.contextDictionaryPath,
+      },
+      workspace,
+      (m) => diagnosticsPush(diagnostics, m),
+    );
     const bug = normalizeBugReport(inputs, dictionary);
     const base = resolveBaseBranch({
       environment_url: inputs.environment_url,
@@ -49,8 +82,6 @@ async function main(): Promise<void> {
 
     const runId = process.env.GITHUB_RUN_ID ?? `${Date.now()}`;
     const workBranch = `fix/slack-${runId}`;
-    emitKv("selected_base_branch", base.selectedBaseBranch);
-    emitKv("work_branch", workBranch);
 
     await checkoutBaseAndCreate(workspace, base.selectedBaseBranch, workBranch);
 
@@ -225,7 +256,6 @@ async function main(): Promise<void> {
           }
 
           report.pr.url = prUrl ?? null;
-          emitKv("pr_url", prUrl ?? "");
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -236,17 +266,17 @@ async function main(): Promise<void> {
       diagnosticsPush(diagnostics, "Skipping push/PR because patch was not validated/applied.");
     }
 
-    emitKv("status", report.status);
-    emitKv("request_id", report.request_id || "unknown");
-
-    console.log(redactPotentialSecrets(JSON.stringify(report, null, 2)));
+    core.setOutput("pull_request_url", prUrl ?? "");
+    core.info(redactPotentialSecrets(JSON.stringify(report, null, 2)));
     writeReport(workspace, report);
-    process.exit(0);
+
+    if (report.status === "failed") {
+      await writeFailureSummary("Run ended with status failed — see report JSON and diagnostics.", diagnostics);
+      core.setFailed("slack-auto-fix: patch or validation failed (see summary and logs).");
+    }
   } catch (fatal) {
     const msg = fatal instanceof Error ? fatal.message : String(fatal);
     diagnosticsPush(diagnostics, `fatal=${msg}`);
-    emitKv("status", "failed");
-    emitKv("diag", escapeOutput(msg));
 
     const fallbackReport: SlackAutoFixReport = {
       schema_version: 1,
@@ -282,15 +312,19 @@ async function main(): Promise<void> {
       diagnostics,
     };
 
-    console.error(redactPotentialSecrets(JSON.stringify(fallbackReport, null, 2)));
+    core.setOutput("pull_request_url", "");
+    core.error(redactPotentialSecrets(JSON.stringify(fallbackReport, null, 2)));
     writeReport(workspace, fallbackReport);
-    process.exit(1);
+    await writeFailureSummary(msg, diagnostics);
+    core.setFailed(msg);
   }
 }
 
-main().catch((e) => {
-  console.error(redactPotentialSecrets(`slack-auto-fix: unhandled rejection ${String(e)}`));
-  process.exit(1);
+main().catch(async (e) => {
+  const msg = redactPotentialSecrets(`slack-auto-fix: unhandled rejection ${String(e)}`);
+  core.error(msg);
+  await writeFailureSummary(msg, [msg]);
+  core.setFailed(msg);
 });
 
 function sanitizeTitle(t: string): string {

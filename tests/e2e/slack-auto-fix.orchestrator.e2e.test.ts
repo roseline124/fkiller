@@ -29,9 +29,9 @@ function hasRipgrep(): boolean {
   }
 }
 
-function hasPnpm(): boolean {
+function hasNode(): boolean {
   try {
-    execFileSync("pnpm", ["--version"], { encoding: "utf8", stdio: "pipe" });
+    execFileSync("node", ["--version"], { encoding: "utf8", stdio: "pipe" });
     return true;
   } catch {
     return false;
@@ -72,13 +72,19 @@ function scaffoldGitWorkspace(): string {
 }
 
 function runOrchestratorSubprocess(fixtureRoot: string, runId: string) {
+  const ghOut = join(fixtureRoot, "..", `github_output_${runId}`);
+  writeFileSync(ghOut, "", "utf8");
+
   const env = {
     ...process.env,
     GITHUB_WORKSPACE: fixtureRoot,
+    GITHUB_OUTPUT: ghOut,
     /** 서브프로세스에서는 호스트 환경에 키가 있어도 무력화 */
     OPENAI_API_KEY: "",
     ANTHROPIC_API_KEY: "",
     GITHUB_RUN_ID: runId,
+    GITHUB_REPOSITORY: "fixture/repo",
+    INPUT_GITHUB_TOKEN: "e2e-dummy-token",
     INPUT_REQUEST_ID: "e2e_req",
     INPUT_REPO: "fixture/repo",
     INPUT_SLACK_CHANNEL_ID: "C_DUMMY",
@@ -92,13 +98,14 @@ function runOrchestratorSubprocess(fixtureRoot: string, runId: string) {
     INPUT_BLOCKED_FILE_PATTERNS: "",
     INPUT_ENVIRONMENT_URL: "",
     INPUT_ENVIRONMENT_NAME: "",
-    INPUT_CONTEXT_DICTIONARY: '{"branchRoutes":[],"keywordRoutes":[]}',
+    INPUT_CONTEXT_DICTIONARY_JSON: '{"branchRoutes":[],"keywordRoutes":[]}',
+    INPUT_CONTEXT_DICTIONARY_PATH: ".github/slack-auto-fix/context-dictionary.json",
     INPUT_MAX_CONTEXT_FILES: "12",
-    INPUT_MAX_PATCH_FILES: "5",
+    INPUT_MAX_CHANGED_FILES: "5",
     GIT_TERMINAL_PROMPT: "0",
   };
 
-  execFileSync("pnpm", ["exec", "tsx", "scripts/slack-auto-fix/index.ts"], {
+  execFileSync("node", [join(REPO_ROOT, "dist/index.js")], {
     cwd: REPO_ROOT,
     env,
     encoding: "utf8",
@@ -106,7 +113,7 @@ function runOrchestratorSubprocess(fixtureRoot: string, runId: string) {
   });
 }
 
-describe.skipIf(!hasRipgrep() || !hasPnpm())("slack-auto-fix subprocess e2e", () => {
+describe.skipIf(!hasRipgrep() || !hasNode())("slack-auto-fix subprocess e2e", () => {
   test(
     "git 픽스처에서 오케스트레이션 완료·리포트·후보 포함",
     { timeout: 60_000 },

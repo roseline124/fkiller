@@ -1,0 +1,92 @@
+name: Slack auto-fix
+description: AI-assisted patch, validate, commit, push, and open a PR on the checked-out repository (GITHUB_WORKSPACE).
+branding:
+  icon: git-pull-request
+  color: gray-dark
+
+inputs:
+  title:
+    description: Bug title for commit/PR subject
+    required: true
+  error_summary:
+    description: Error summary or stack trace
+    required: true
+  reproduction_steps:
+    description: Steps to reproduce
+    required: false
+    default: ""
+  expected_behavior:
+    description: Expected behavior
+    required: false
+    default: ""
+  environment_url:
+    description: Deployed URL for branch routing (context dictionary)
+    required: false
+    default: ""
+  environment_name:
+    description: Environment name for branch routing (context dictionary)
+    required: false
+    default: ""
+  allowed_file_patterns:
+    description: JSON array of glob patterns; only these paths may be modified (empty = no allow-list)
+    required: false
+    default: "[]"
+  blocked_file_patterns:
+    description: JSON array of extra glob patterns blocked in addition to built-in defaults
+    required: false
+    default: "[]"
+  max_changed_files:
+    description: Maximum number of files the patch may touch
+    required: false
+    default: "5"
+  request_id:
+    description: Optional external request id (e.g. Supabase fix_requests.id)
+    required: false
+    default: ""
+  repo:
+    description: Optional repository label for report metadata
+    required: false
+    default: ""
+  slack_channel_id:
+    description: Optional Slack channel id for report metadata
+    required: false
+    default: ""
+  slack_thread_ts:
+    description: Optional Slack thread ts for report metadata
+    required: false
+    default: ""
+  language:
+    description: BCP47 locale for new inline comments in generated patches (default ko)
+    required: false
+    default: ""
+  max_context_files:
+    description: Max candidate files to send to the model (5–20, default 12)
+    required: false
+    default: ""
+  context_dictionary_path:
+    description: Path relative to repository root for context routing JSON
+    required: false
+    default: ".github/slack-auto-fix/context-dictionary.json"
+  context_dictionary_json:
+    description: Inline context routing JSON (overrides file at context_dictionary_path when non-empty)
+    required: false
+    default: ""
+  openai_api_key:
+    description: OpenAI API key (optional if Anthropic key is set)
+    required: false
+    default: ""
+  anthropic_api_key:
+    description: Anthropic API key (optional if OpenAI key is set)
+    required: false
+    default: ""
+  github_token:
+    description: Token for git push and gh pr create (typically github.token)
+    required: true
+
+outputs:
+  pull_request_url:
+    description: URL of the pull request created by this run (empty if no PR was opened)
+
+runs:
+  using: node20
+  main: dist/index.js

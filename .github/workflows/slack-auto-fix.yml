@@ -43,17 +43,20 @@ on:
       environment_name:
         description: Context Routing — 배포 이름
         required: false
-      context_dictionary:
-        description: Routing JSON 문자열 (선택 시 파일보다 우선)
+      context_dictionary_json:
+        description: Routing JSON 문자열 (비어 있지 않으면 파일보다 우선)
+        required: false
+      context_dictionary_path:
+        description: 컨텍스트 JSON 경로 (repo 루트 기준, 기본값 액션과 동일)
         required: false
       max_context_files:
         description: AI에 전달할 후보 파일 수 (5–20)
         required: false
-      max_patch_files:
+      max_changed_files:
         description: 패치 허용 최대 수정 파일 수 (1–20)
         required: false
       language:
-        description: AI 신규 인라인 주석용 locale(BCP47, 예 ko/en/ja-JP). 비워두면 스크립트 기본 ko
+        description: AI 신규 인라인 주석용 locale (예 ko/en/ja-JP)
         required: false
 
 jobs:
@@ -69,64 +72,28 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - uses: actions/setup-node@v4
+      - uses: ./
         with:
-          node-version: '22'
-
-      - name: Install dependencies via detected manager
-        run: |
-          set -euo pipefail
-          if [[ -f pnpm-lock.yaml ]]; then
-            corepack enable
-            if [[ ! -d node_modules ]]; then pnpm install --frozen-lockfile; fi
-          elif [[ -f yarn.lock ]]; then
-            if [[ ! -d node_modules ]]; then yarn install --frozen-lockfile; fi
-          elif [[ -f package-lock.json ]]; then
-            if [[ ! -d node_modules ]]; then npm ci; fi
-          else
-            corepack enable
-            if [[ ! -d node_modules ]]; then pnpm install; fi
-          fi
-
-      - name: Run slack-auto-fix
-        env:
-          GITHUB_RUN_ID: ${{ github.run_id }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_TOKEN: ${{ github.token }}
-          GH_TOKEN: ${{ github.token }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-
-          INPUT_REQUEST_ID: ${{ github.event.inputs.request_id }}
-          INPUT_REPO: ${{ github.event.inputs.repo }}
-          INPUT_SLACK_CHANNEL_ID: ${{ github.event.inputs.slack_channel_id }}
-          INPUT_SLACK_THREAD_TS: ${{ github.event.inputs.slack_thread_ts }}
-          INPUT_TITLE: ${{ github.event.inputs.title }}
-          INPUT_ERROR_SUMMARY: ${{ github.event.inputs.error_summary }}
-          INPUT_REPRODUCTION_STEPS: ${{ github.event.inputs.reproduction_steps }}
-          INPUT_EXPECTED_BEHAVIOR: ${{ github.event.inputs.expected_behavior }}
-          INPUT_ALLOWED_FILE_PATTERNS: ${{ github.event.inputs.allowed_file_patterns }}
-          INPUT_BLOCKED_FILE_PATTERNS: ${{ github.event.inputs.blocked_file_patterns }}
-          INPUT_ENVIRONMENT_URL: ${{ github.event.inputs.environment_url }}
-          INPUT_ENVIRONMENT_NAME: ${{ github.event.inputs.environment_name }}
-          INPUT_CONTEXT_DICTIONARY: ${{ github.event.inputs.context_dictionary }}
-          INPUT_MAX_CONTEXT_FILES: ${{ github.event.inputs.max_context_files }}
-          INPUT_MAX_PATCH_FILES: ${{ github.event.inputs.max_patch_files }}
-          INPUT_LANGUAGE: ${{ github.event.inputs.language }}
-        run: |
-          set -euo pipefail
-          if [[ -f pnpm-lock.yaml ]]; then
-            corepack enable || true
-            pnpm exec tsx scripts/slack-auto-fix/index.ts
-          elif [[ -f yarn.lock ]]; then
-            if command -v corepack >/dev/null 2>&1; then corepack enable || true; fi
-            NODE_OPTIONS="" npx --yes tsx scripts/slack-auto-fix/index.ts
-          elif [[ -f package-lock.json ]]; then
-            npx --yes tsx scripts/slack-auto-fix/index.ts
-          else
-            corepack enable || true
-            pnpm exec tsx scripts/slack-auto-fix/index.ts
-          fi
+          title: ${{ github.event.inputs.title }}
+          error_summary: ${{ github.event.inputs.error_summary }}
+          reproduction_steps: ${{ github.event.inputs.reproduction_steps }}
+          expected_behavior: ${{ github.event.inputs.expected_behavior }}
+          environment_url: ${{ github.event.inputs.environment_url }}
+          environment_name: ${{ github.event.inputs.environment_name }}
+          allowed_file_patterns: ${{ github.event.inputs.allowed_file_patterns }}
+          blocked_file_patterns: ${{ github.event.inputs.blocked_file_patterns }}
+          max_changed_files: ${{ github.event.inputs.max_changed_files }}
+          max_context_files: ${{ github.event.inputs.max_context_files }}
+          language: ${{ github.event.inputs.language }}
+          request_id: ${{ github.event.inputs.request_id }}
+          repo: ${{ github.event.inputs.repo }}
+          slack_channel_id: ${{ github.event.inputs.slack_channel_id }}
+          slack_thread_ts: ${{ github.event.inputs.slack_thread_ts }}
+          context_dictionary_path: ${{ github.event.inputs.context_dictionary_path }}
+          context_dictionary_json: ${{ github.event.inputs.context_dictionary_json }}
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
 
       - name: Upload report artifact
         if: always()

@@ -8,14 +8,14 @@ GitHub Actions `workflow_dispatch`로 버그 리포트(제목·에러·재현 �
 
 ```
 Supabase Edge Function / 내부 서비스
-        │  GitHub API: POST /repos/{owner}/{repo}/actions/workflows/slack-auto-fix.yml/dispatches
+        │  GitHub API: POST .../actions/workflows/.../dispatches
         ▼
 GitHub Actions (ubuntu, checkout fetch-depth 0)
-        │  루트 패키지 매니저(lockfile) 기준 의존성 설치 후
+        │  GITHUB_WORKSPACE = 소비 레포 루트
         ▼
-scripts/slack-auto-fix/index.ts
-  1) INPUT_* 환경변수 로드 (workflow 입력, `LANGUAGE` 포함)
-  2) context-dictionary 로드 (입력 JSON > 파일 > 예제 > 빈 객체)
+재사용 Action: dist/index.js (Node 20)
+  1) action 입력 + github_token / API 키 → 환경변수
+  2) context-dictionary: context_dictionary_json > 파일(context_dictionary_path) > 빈 객체
   3) 정규화 + 차단 glob 병합
   4) resolve-base-branch.ts → PR base 브랜치
   5) git fetch/checkout → fix/slack-${{ github.run_id }} 생성
@@ -24,7 +24,7 @@ scripts/slack-auto-fix/index.ts
   8) git apply --check / git apply (diff 외 명령·AI 명령 미실행)
   9) package.json 에 lint/test 있으면 해당 PM으로 실행 (실패해도 PR 시도 가능)
  10) 변경 있으면 commit → push → gh pr create (--base 선택된 base)
- 11) slack-auto-fix-report.json + GITHUB_OUTPUT
+ 11) slack-auto-fix-report.json + outputs.pull_request_url + Job summary(실패 시)
 ```
 
 외부 명령은 **고정 허용 목록** 안에서만 사용합니다(`git` 하위 명령, `rg`/`git grep`, `pnpm`/`npm`/`yarn` 스크립트, `gh` PR 생성 등). AI 출력에서 추출한 셸 명령은 **실행하지 않습니다**.
@@ -33,25 +33,25 @@ scripts/slack-auto-fix/index.ts
 
 ## Context Routing
 
-### `context_dictionary` (workflow 입력, JSON 문자열)
+### `context_dictionary_json` / `context_dictionary_path` (action 입력)
 
 | 필드 | 설명 |
 |------|------|
 | `branchRoutes[]` | `match.environmentUrl` 정확 일치 → 해당 `baseBranch`. 없으면 `match.environmentName` 일치 순. 매칭 없으면 **`main`**. |
 | `keywordRoutes[]` | Slack 합본 텍스트 소문자에 `keywords[]` 하나라도 포함되면 해당 라우트 매칭. `symbols[]`로 ripgrep, `paths[]`로 glob 매칭 파일에 가점. |
 
-파일 우선순위(입력이 비어 있을 때):
+우선순위:
 
-1. [`scripts/slack-auto-fix/context-dictionary.json`](../scripts/slack-auto-fix/context-dictionary.json)
-2. 없으면 [`context-dictionary.example.json`](../scripts/slack-auto-fix/context-dictionary.example.json)
-3. 그마저 없으면 빈 설정
+1. **`context_dictionary_json`** (비어 있지 않으면 이 JSON만 사용, 잘못된 JSON이면 실패)
+2. 소비 레포 루트 기준 **`context_dictionary_path`** 파일(기본 `.github/slack-auto-fix/context-dictionary.json`). 없으면 빈 설정
+3. 빈 객체
 
-워크플로에서 `inputs.context_dictionary` 가 **비어 있지 않으면** 그 JSON이 **항상 우선**(파일을 덮어씁니다).
+예시 파일: [`examples/context-dictionary.example.json`](../examples/context-dictionary.example.json).
 
-### 운영자가 사전 로 갱신하는 방법
+### 운영자가 사전에 갱신하는 방법
 
-- 레포의 `scripts/slack-auto-fix/context-dictionary.json` 을 PR로 관리합니다.
-- 일회성 실험이면 workflow_dispatch 의 `context_dictionary` 에 전체 JSON을 넣어 덮어씁니다.
+- 소비 레포의 `.github/slack-auto-fix/context-dictionary.json` 을 PR로 관리합니다.
+- 일회성 실험이면 액션 입력 `context_dictionary_json` 에 전체 JSON을 넣습니다.
 
 ### 브랜치 매핑 예시
 
@@ -94,7 +94,7 @@ scripts/slack-auto-fix/index.ts
     "error_summary": "템플릿 상세페이지에서 keyvalue 추출이 안돼요",
     "reproduction_steps": "템플릿 상세페이지 접속 후 keyvalue 추출 실행",
     "expected_behavior": "keyvalue OCR 결과가 정상적으로 스트리밍되어야 함",
-    "context_dictionary": "{\"branchRoutes\":[{\"match\":{\"environmentUrl\":\"https://agent.koreadeep.com\"},\"baseBranch\":\"main\"}],\"keywordRoutes\":[{\"keywords\":[\"템플릿 상세페이지\",\"keyvalue\"],\"symbols\":[\"OCRTemplateDetailScreen\",\"useOcrKeyvalueStream\"],\"paths\":[\"apps/**/src/**/OCRTemplateDetailScreen*\",\"apps/**/src/**/*ocr*template*\"]}]}"
+    "context_dictionary_json": "{\"branchRoutes\":[{\"match\":{\"environmentUrl\":\"https://agent.koreadeep.com\"},\"baseBranch\":\"main\"}],\"keywordRoutes\":[{\"keywords\":[\"템플릿 상세페이지\",\"keyvalue\"],\"symbols\":[\"OCRTemplateDetailScreen\",\"useOcrKeyvalueStream\"],\"paths\":[\"apps/**/src/**/OCRTemplateDetailScreen*\",\"apps/**/src/**/*ocr*template*\"]}]}"
   }
 }
 ```
@@ -144,7 +144,7 @@ REST API는 [`Create a workflow dispatch event`](https://docs.github.com/en/rest
 - **diff만 적용**: AI 가 제안한 셸 명령은 실행하지 않습니다.
 - **수정 허용 범위**: 기본 차단 glob + 사용자 `blocked_file_patterns`, 선택적 `allowed_file_patterns` 교집합. 패치 헤더 경로도 다시 검사합니다.
 - **신규 파일 생성**: 패치에 `--- /dev/null` 기반 새 파일이 있으면 정책상 거부합니다.
-- **비용**: 후보 파일·스니펫 길이에 따라 토큰 사용량이 큽니다. `max_context_files`(기본 12), `max_patch_files`(기본 5)로 조절하세요.
+- **비용**: 후보 파일·스니펫 길이에 따라 토큰 사용량이 큽니다. `max_context_files`(기본 12), `max_changed_files`(기본 5)로 조절하세요.
 - **기준 브랜치 존재**: `fetch-depth: 0` 로 받아 `origin/<base>` 가 있어야 합니다.
 
 ---
@@ -187,17 +187,18 @@ pnpm test
 pnpm test:e2e
 ```
 
-[`tests/e2e/slack-auto-fix.orchestrator.e2e.test.ts`](../tests/e2e/slack-auto-fix.orchestrator.e2e.test.ts): bare 원격 + 워킹 트리를 만들고 `GITHUB_WORKSPACE` 를 그 클론으로 둔 뒤 **`pnpm exec tsx scripts/slack-auto-fix/index.ts`** 를 실행합니다.
+[`tests/e2e/slack-auto-fix.orchestrator.e2e.test.ts`](../tests/e2e/slack-auto-fix.orchestrator.e2e.test.ts): bare 원격 + 워킹 트리를 만들고 `GITHUB_WORKSPACE` 를 그 클론으로 둔 뒤 **`node dist/index.js`** 를 실행합니다.
 서브프로세스에서는 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` 를 비워 **패치 미적용 noop** 과 `slack-auto-fix-report.json`·후보 경로 검증까지 확인합니다.
 
-### Slack 자동 수정 스크립트
+### Slack 자동 수정 (로컬)
 
 ```bash
+export INPUT_GITHUB_TOKEN='ghs_...'   # 또는 더미 (일부 경로만)
 export INPUT_TITLE='예시'
 export INPUT_ERROR_SUMMARY='예시 버그'
 export INPUT_LANGUAGE='ko'
-# … 필요 시 INPUT_* 전부 설정
-pnpm exec tsx scripts/slack-auto-fix/index.ts
+# 필요 시 기타 INPUT_* (actions 입력 이름 대문자화 규칙과 동일)
+pnpm run slack-auto-fix
 ```
 
 리포트는 워크스페이스 루트에 `slack-auto-fix-report.json` 으로 기록됩니다.
